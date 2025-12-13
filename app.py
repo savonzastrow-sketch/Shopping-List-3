@@ -20,6 +20,10 @@ STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"] # Store Tabs
 # -----------------------
 st.set_page_config(page_title="🛒 Shopping List", layout="centered")
 
+# --- INITIALIZE SESSION STATE ---
+if 'data_version' not in st.session_state:
+    st.session_state['data_version'] = 0
+
 # -----------------------
 # STYLES (Includes JavaScript for faster internal rerun)
 # -----------------------
@@ -79,7 +83,8 @@ def get_gspread_client():
         return None
 
 # Function to load the spreadsheet and sheet data
-def load_and_get_data(client):
+# The unused_version parameter is key to forcing a rerun when the state is incremented
+def load_and_get_data ( client, unused_version ) :
     """Loads the spreadsheet, creates it if necessary, and returns the sheet object and DataFrame."""
     try:
         # 1. Open Spreadsheet
@@ -140,7 +145,10 @@ def save_data_to_sheet(sheet, df):
         
         # Write the new data
         sheet.append_rows(data_to_write, value_input_option='USER_ENTERED')
-        
+
+        # SUCCESS: Increment the version to break the cache on the next run
+        st.session_state['data_version'] += 1
+    
     except Exception as e:
         st.error("Data save failed. Could not write to Google Sheet.")
         st.exception(e)
@@ -158,6 +166,9 @@ sheet, df = load_and_get_data(g_client)
 
 if sheet is None:
     st.stop() # Stop if sheet creation/loading failed
+
+# PASS THE SESSION STATE VALUE HERE
+sheet, df = load_and_get_data(g_client, st.session_state['data_version'])
 
 st.markdown(f"<h1>🛒 Shopping List</h1>", unsafe_allow_html=True)
 
