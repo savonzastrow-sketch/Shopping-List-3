@@ -94,7 +94,10 @@ def load_and_get_data(client):
         # 3. Ensure proper dtypes
         if "purchased" in df.columns:
             df["purchased"] = df["purchased"].astype(bool)
-            
+        
+        # IMPORTANT FIX: Reset the index to ensure clean 0, 1, 2... index for toggling/deleting
+        df = df.reset_index(drop=True)
+        
         return sheet, df
         
     except gspread.SpreadsheetNotFound:
