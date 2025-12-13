@@ -4,6 +4,7 @@ import gspread
 from datetime import datetime
 import time
 
+# Minor Change
 # -----------------------
 # CONFIG (Google Sheets)
 # -----------------------
