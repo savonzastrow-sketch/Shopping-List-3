@@ -83,11 +83,11 @@ def save_data_to_sheet(sheet, df):
 
 # Function to load the spreadsheet and sheet data
 @st.cache_data(ttl=60, show_spinner=False)
-def load_and_get_data ( client, unused_version ) :
+def load_and_get_data ( _client, unused_version ) :
     """Loads the spreadsheet, creates it if necessary, and returns the sheet object and DataFrame."""
     try:
         # 1. Open Spreadsheet
-        spreadsheet = client.open(SHEET_NAME)
+        spreadsheet = _client.open(SHEET_NAME)
         sheet = spreadsheet.sheet1
         
         # 2. Read Data
@@ -109,7 +109,7 @@ def load_and_get_data ( client, unused_version ) :
         
         # --- Sheet Creation Logic ---
         try:
-            spreadsheet = client.create(SHEET_NAME, folder_id=FOLDER_ID) 
+            spreadsheet = _client.create(SHEET_NAME, folder_id=FOLDER_ID) 
             
             service_account_email = st.secrets["gcp_service_account"]["client_email"]
             spreadsheet.share(service_account_email, role='writer', type='user')
