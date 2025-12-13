@@ -154,22 +154,21 @@ def save_data_to_sheet(sheet, df):
         st.exception(e)
 
 
-# -----------------------
-# APP START
-# -----------------------
-g_client = get_gspread_client()
-
+# ----------------------- 
+# APP START 
+# ----------------------- 
+g_client = get_gspread_client() 
 if not g_client:
     st.stop() # Stop execution if authentication fails
 
+# 1. PASS THE SESSION STATE VALUE HERE TO DEFINE 'sheet' AND 'df'
+sheet, df = load_and_get_data(g_client, st.session_state['data_version']) 
+
+# 2. NOW CHECK IF sheet IS NONE
 if sheet is None:
     st.stop() # Stop if sheet creation/loading failed
 
-# PASS THE SESSION STATE VALUE HERE
-sheet, df = load_and_get_data(g_client, st.session_state['data_version'])
-
 st.markdown(f"<h1>🛒 Shopping List</h1>", unsafe_allow_html=True)
-
 
 # =====================================================
 # ADD ITEM FORM (Outside of tabs so it's always visible)
