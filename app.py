@@ -49,7 +49,7 @@ def get_sheet_data(client):
         # --- Sheet Creation Logic (from Test App success) ---
         try:
             # Create the spreadsheet explicitly inside the Shared Drive folder
-            spreadsheet = client.create(SHEET_NAME, folder_id=FOLDER_ID, share_folder=True)
+            spreadsheet = client.create(SHEET_NAME, folder_id=FOLDER_ID)
             
             # Grant permission to the service account (though it should have it as 'owner' or via sharing)
             service_account_email = st.secrets["gcp_service_account"]["client_email"]
