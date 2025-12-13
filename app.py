@@ -115,13 +115,21 @@ if g_client:
         st.divider()
 
         # --- Display Current Shopping List ---
-        st.subheader("Current Shopping List")
-        
-        if df_data.empty:
-            st.info("The shopping list is empty! Add your first item above.")
-        else:
-            # Drop the 'Timestamp' column for cleaner display
-            display_df = df_data.drop(columns=['Timestamp'])
-            
-            # Display the data in reverse chronological order (newest at the top)
-            st.dataframe(display_df.iloc[::-1], use_container_width=True, hide_index=True)
+st.subheader("Current Shopping List")
+
+if df_data.empty:
+    st.info("The shopping list is empty! Add your first item above.")
+else:
+    # The dataframe has data, but gspread.get_all_records() reads the header row 
+    # as the first record if the sheet only has headers.
+    
+    # Check if 'Timestamp' is actually in the columns before dropping it.
+    if 'Timestamp' in df_data.columns:
+        # Drop the 'Timestamp' column for cleaner display
+        display_df = df_data.drop(columns=['Timestamp'])
+    else:
+        # Fallback for an unexpected state (e.g., only a header row)
+        display_df = df_data
+    
+    # Display the data in reverse chronological order (newest at the top)
+    st.dataframe(display_df.iloc[::-1], use_container_width=True, hide_index=True)        
