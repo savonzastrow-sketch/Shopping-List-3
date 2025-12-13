@@ -259,10 +259,10 @@ for store_name, store_tab in zip(STORES, store_tabs):
                 status_style = "color: #888;" if purchased else "color: #000;"
                 
                 # 2. Link for the status emoji (to toggle purchase)
-                toggle_link = f"<a href='?toggle={idx}' style='text-decoration: none; font-size: 18px; flex-shrink: 0; margin-right: 10px; {status_style}'>{status_emoji}</a>"
+                toggle_link = f"<a href='?toggle={row['timestamp']}' style='text-decoration: none; font-size: 18px; flex-shrink: 0; margin-right: 10px; {status_style}'>{status_emoji}</a>"
                 
                 # 3. Link for the delete emoji (to delete the item)
-                delete_link = f"<a href='?delete={idx}' style='text-decoration: none; font-size: 18px; flex-shrink: 0; color: #f00;'>🗑️</a>"
+                delete_link = f"<a href='?delete={row['timestamp']}' style='text-decoration: none; font-size: 18px; flex-shrink: 0; color: #f00;'>🗑️</a>"
 
                 # 4. Item Name display (no link)
                 item_name_display = f"<span style='font-size: 14px; flex-grow: 1; {status_style}'>{item_name}</span>"
@@ -287,20 +287,21 @@ query_params = st.query_params
 
 # Check for toggle click
 toggle_id = query_params.get("toggle", None)
-if toggle_id and toggle_id.isdigit():
-    clicked_idx = int(toggle_id)
-    if clicked_idx in df.index:
-        df.loc[clicked_idx, "purchased"] = not df.loc[clicked_idx, "purchased"]
-        save_data_to_sheet(sheet, df) # <<< NEW: Save to Google Sheet
-        st.query_params.clear() 
-        st.rerun()
+if toggle_id: 
+    # Use boolean indexing to find the row by its unique timestamp and flip the value
+    df.loc[df['timestamp'] == toggle_id, "purchased"] = \
+        ~df.loc[df['timestamp'] == toggle_id, "purchased"]
+        
+    save_data_to_sheet(sheet, df) 
+    st.query_params.clear() 
+    st.rerun()
 
 # Check for delete click
 delete_id = query_params.get("delete", None)
-if delete_id and delete_id.isdigit():
-    clicked_idx = int(delete_id)
-    if clicked_idx in df.index:
-        df = df.drop(clicked_idx)
-        save_data_to_sheet(sheet, df) # <<< NEW: Save to Google Sheet
-        st.query_params.clear() 
-        st.rerun()
+if delete_id: 
+    # Use boolean indexing to keep all rows where the timestamp does NOT match the ID
+    df = df[df['timestamp'] != delete_id]
+    
+    save_data_to_sheet(sheet, df) 
+    st.query_params.clear() 
+    st.rerun()
