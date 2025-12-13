@@ -69,8 +69,7 @@ def get_gspread_client():
         st.exception(e)
         return None
 
-# The heavy save_data_to_sheet is NO LONGER USED in the new logic, but kept here 
-# in case it is needed for bulk operations. We now use append_row and update_cell.
+# The heavy save_data_to_sheet is NO LONGER USED in the new logic
 def save_data_to_sheet(sheet, df):
     """Clears the sheet, writes headers, and writes the entire DataFrame. USE SPARINGLY."""
     try:
@@ -82,12 +81,13 @@ def save_data_to_sheet(sheet, df):
         st.error(f"Error saving data to sheet: {e}")
 
 # Function to load the spreadsheet and sheet data
+# The argument is prefixed with an underscore to prevent Streamlit cache hashing error
 @st.cache_data(ttl=60, show_spinner=False)
 def load_and_get_data ( _client, unused_version ) :
     """Loads the spreadsheet, creates it if necessary, and returns the sheet object and DataFrame."""
     try:
         # 1. Open Spreadsheet
-        spreadsheet = _client.open(SHEET_NAME)
+        spreadsheet = _client.open(SHEET_NAME) # Corrected reference to _client
         sheet = spreadsheet.sheet1
         
         # 2. Read Data
@@ -109,6 +109,7 @@ def load_and_get_data ( _client, unused_version ) :
         
         # --- Sheet Creation Logic ---
         try:
+            # Corrected reference to _client
             spreadsheet = _client.create(SHEET_NAME, folder_id=FOLDER_ID) 
             
             service_account_email = st.secrets["gcp_service_account"]["client_email"]
@@ -139,7 +140,6 @@ def find_row_index(sheet, timestamp_id):
         index = timestamps.index(timestamp_id)
         return index + 2
     except ValueError:
-        # This occurs if the item was deleted by another user between the load and click
         st.warning("Item not found in sheet; data may have been updated by another user.")
         return None
 
@@ -148,6 +148,11 @@ def toggle_item(timestamp_id):
     g_client = st.session_state['g_client']
     sheet, df = load_and_get_data(g_client, st.session_state['data_version'])
     
+    # CRITICAL FIX: Check for None sheet object
+    if sheet is None:
+        st.error("Cannot perform update: Sheet failed to load.")
+        return
+        
     # Get the current status and calculate new status
     current_status = df.loc[df['timestamp'] == timestamp_id, "purchased"].iloc[0]
     new_status = not current_status
@@ -156,6 +161,7 @@ def toggle_item(timestamp_id):
     
     if row_index:
         # Get the DataFrame column names to find the 1-based index of 'purchased'
+        # Note: 'purchased' column is assumed to exist after load_and_get_data
         purchased_col_index = df.columns.get_loc('purchased') + 1
         
         # PERFORM SINGLE CELL UPDATE (CRITICAL FOR QUOTA FIX)
@@ -167,6 +173,11 @@ def toggle_item(timestamp_id):
 def delete_item(timestamp_id):
     g_client = st.session_state['g_client']
     sheet, df = load_and_get_data(g_client, st.session_state['data_version'])
+
+    # CRITICAL FIX: Check for None sheet object
+    if sheet is None:
+        st.error("Cannot perform delete: Sheet failed to load.")
+        return
 
     row_index = find_row_index(sheet, timestamp_id)
     
