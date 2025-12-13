@@ -162,8 +162,6 @@ g_client = get_gspread_client()
 if not g_client:
     st.stop() # Stop execution if authentication fails
 
-sheet, df = load_and_get_data(g_client)
-
 if sheet is None:
     st.stop() # Stop if sheet creation/loading failed
 
