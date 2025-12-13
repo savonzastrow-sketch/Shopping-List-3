@@ -98,7 +98,9 @@ def load_and_get_data ( client, unused_version ) :
         
         # 3. Ensure proper dtypes
         if "purchased" in df.columns:
-            df["purchased"] = df["purchased"].astype(bool)
+            # CRITICAL FIX: Explicitly convert the string values 'False' and 'True' to proper booleans
+            # Use str.lower().map() to safely handle string representations of booleans
+            df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
         
         # IMPORTANT FIX: Reset the index to ensure clean 0, 1, 2... index for toggling/deleting
         df = df.reset_index(drop=True)
