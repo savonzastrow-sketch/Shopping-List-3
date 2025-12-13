@@ -303,8 +303,12 @@ if toggle_id:
         ~df.loc[df['timestamp'] == toggle_id, "purchased"]
         
     save_data_to_sheet(sheet, df) 
-    st.query_params.clear() 
-    st.rerun()
+
+    # Explicitly remove the 'toggle' parameter to prevent new tab/navigation issues
+    if 'toggle' in st.query_params:
+        del st.query_params['toggle']
+
+st.rerun()
 
 # Check for delete click
 delete_id = query_params.get("delete", None)
@@ -313,5 +317,9 @@ if delete_id:
     df = df[df['timestamp'] != delete_id]
     
     save_data_to_sheet(sheet, df) 
-    st.query_params.clear() 
+
+    # Explicitly remove the 'delete' parameter
+    if 'delete' in st.query_params:
+        del st.query_params['delete']
+
     st.rerun()
