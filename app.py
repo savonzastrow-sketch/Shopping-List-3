@@ -76,17 +76,25 @@ def get_gspread_client():
         return None
 
 # Function to load the spreadsheet and sheet data
-def load_and_get_data(client):
+# CRITICAL FIX: Use '_client' to enable Streamlit caching
+@st.cache_data(ttl=60, show_spinner=False)
+def load_and_get_data(_client):
     """Loads the spreadsheet, creates it if necessary, and returns the sheet object and DataFrame."""
     try:
         # 1. Open Spreadsheet
-        spreadsheet = client.open(SHEET_NAME)
+        spreadsheet = _client.open(SHEET_NAME) # Use _client
         sheet = spreadsheet.sheet1
         
         # 2. Read Data
-        # Use get_all_records() to read data and use the first row as headers
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
+        
+        # CRITICAL FIX: Ensure columns exist even if the sheet is empty (KeyError fix)
+        default_cols = ["timestamp", "item", "purchased", "category", "store"]
+        
+        if df.empty or 'store' not in df.columns:
+            # If empty or missing expected columns, recreate the structure
+            df = pd.DataFrame(columns=default_cols)
         
         # 3. Ensure proper dtypes
         if "purchased" in df.columns:
@@ -101,7 +109,7 @@ def load_and_get_data(client):
         # --- Sheet Creation Logic (The proven code that works) ---
         try:
             # Create the spreadsheet explicitly inside the Shared Drive folder
-            spreadsheet = client.create(SHEET_NAME, folder_id=FOLDER_ID) 
+            spreadsheet = _client.create(SHEET_NAME, folder_id=FOLDER_ID) # Use _client
             
             # Share with service account (safety check)
             service_account_email = st.secrets["gcp_service_account"]["client_email"]
@@ -148,6 +156,7 @@ g_client = get_gspread_client()
 if not g_client:
     st.stop() # Stop execution if authentication fails
 
+# NOTE: The load_and_get_data now only takes one argument since the cache key version was removed
 sheet, df = load_and_get_data(g_client)
 
 if sheet is None:
