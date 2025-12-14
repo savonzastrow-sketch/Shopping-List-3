@@ -20,15 +20,10 @@ STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"] # Store Tabs
 # -----------------------
 st.set_page_config(page_title="🛒 Shopping List", layout="centered")
 
-# --- INITIALIZE SESSION STATE ---
-if 'data_version' not in st.session_state:
-    st.session_state['data_version'] = 0
-if 'g_client' not in st.session_state:
-    st.session_state['g_client'] = None
+# -----------------------
+# STYLES (Includes custom CSS)
+# -----------------------
 
-# -----------------------
-# STYLES
-# -----------------------
 st.markdown("""
 <style>
 h1 { font-size: 32px !important; text-align: center; }
@@ -47,6 +42,17 @@ p, div, label, .stMarkdown { font-size: 18px !important; line-height: 1.6; }
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
     }
+}
+
+/* Custom CSS for the item list layout */
+.item-row {
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    padding: 8px 5px; 
+    margin-bottom: 3px; 
+    border-bottom: 1px solid #eee; 
+    min-height: 40px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -69,56 +75,44 @@ def get_gspread_client():
         st.exception(e)
         return None
 
-# The heavy save_data_to_sheet is NO LONGER USED in the new logic
-def save_data_to_sheet(sheet, df):
-    """Clears the sheet, writes headers, and writes the entire DataFrame. USE SPARINGLY."""
-    try:
-        sheet.clear()
-        sheet.append_row(df.columns.tolist())
-        data_to_write = df.values.tolist()
-        sheet.append_rows(data_to_write, value_input_option='USER_ENTERED')
-    except Exception as e:
-        st.error(f"Error saving data to sheet: {e}")
-
 # Function to load the spreadsheet and sheet data
-# The argument is prefixed with an underscore to prevent Streamlit cache hashing error
-@st.cache_data(ttl=60, show_spinner=False)
-def load_and_get_data ( _client, unused_version ) :
+def load_and_get_data(client):
     """Loads the spreadsheet, creates it if necessary, and returns the sheet object and DataFrame."""
     try:
         # 1. Open Spreadsheet
-        spreadsheet = _client.open(SHEET_NAME) # Corrected reference to _client
+        spreadsheet = client.open(SHEET_NAME)
         sheet = spreadsheet.sheet1
         
         # 2. Read Data
+        # Use get_all_records() to read data and use the first row as headers
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
         # 3. Ensure proper dtypes
         if "purchased" in df.columns:
-            # Safely convert string representations of booleans
-            df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
-        
-        # Reset the index to ensure clean index
-        df = df.reset_index(drop=True)
-        
+            # Note: For this version, we assume 'purchased' is loaded as a boolean if set up correctly
+            df["purchased"] = df["purchased"].astype(bool)
+            
         return sheet, df
         
     except gspread.SpreadsheetNotFound:
         st.warning(f"Shopping List Data sheet not found. Creating a new one named '{SHEET_NAME}'...")
         
-        # --- Sheet Creation Logic ---
+        # --- Sheet Creation Logic (The proven code that works) ---
         try:
-            # Corrected reference to _client
-            spreadsheet = _client.create(SHEET_NAME, folder_id=FOLDER_ID) 
+            # Create the spreadsheet explicitly inside the Shared Drive folder
+            spreadsheet = client.create(SHEET_NAME, folder_id=FOLDER_ID) 
             
+            # Share with service account (safety check)
             service_account_email = st.secrets["gcp_service_account"]["client_email"]
             spreadsheet.share(service_account_email, role='writer', type='user')
             
             sheet = spreadsheet.sheet1
+            # Define header row (must match the keys used in new_row creation)
             sheet.append_row(["timestamp", "item", "purchased", "category", "store"]) 
             
             st.success(f"Successfully created a new sheet in your Shared Drive.")
+            # Return a DataFrame with correct columns but no data
             df = pd.DataFrame(columns=["timestamp", "item", "purchased", "category", "store"])
             if "purchased" in df.columns:
                 df["purchased"] = df["purchased"].astype(bool)
@@ -129,87 +123,45 @@ def load_and_get_data ( _client, unused_version ) :
             st.exception(e)
             return None, pd.DataFrame(columns=["timestamp", "item", "purchased", "category", "store"])
 
-
-def find_row_index(sheet, timestamp_id):
-    """Finds the 1-based row index in the sheet for a given timestamp."""
+def save_data_to_sheet(sheet, df):
+    """Writes the entire DataFrame back to the Google Sheet. (Heavy API Call)"""
     try:
-        # Assuming 'timestamp' is the first column (col 1)
-        timestamps = sheet.col_values(1)[1:] # [1:] skips the header row
+        # Prepare data: Convert DataFrame to a list of lists (including headers)
+        data_to_write = [df.columns.values.tolist()] + df.values.tolist()
         
-        # Find the 0-based index in the list, then add 2 to get the 1-based sheet row index
-        index = timestamps.index(timestamp_id)
-        return index + 2
-    except ValueError:
-        st.warning("Item not found in sheet; data may have been updated by another user.")
-        return None
-
-# --- NEW CALLBACK FUNCTIONS (EFFICIENT API CALLS - QUOTA FIX) ---
-def toggle_item(timestamp_id):
-    g_client = st.session_state['g_client']
-    sheet, df = load_and_get_data(g_client, st.session_state['data_version'])
-    
-    # CRITICAL FIX: Check for None sheet object
-    if sheet is None:
-        st.error("Cannot perform update: Sheet failed to load.")
-        return
+        # Clear the existing sheet content (including headers)
+        sheet.clear()
         
-    # Get the current status and calculate new status
-    current_status = df.loc[df['timestamp'] == timestamp_id, "purchased"].iloc[0]
-    new_status = not current_status
-    
-    row_index = find_row_index(sheet, timestamp_id)
-    
-    if row_index:
-        # Get the DataFrame column names to find the 1-based index of 'purchased'
-        # Note: 'purchased' column is assumed to exist after load_and_get_data
-        purchased_col_index = df.columns.get_loc('purchased') + 1
+        # Write the new data
+        sheet.append_rows(data_to_write, value_input_option='USER_ENTERED')
         
-        # PERFORM SINGLE CELL UPDATE (CRITICAL FOR QUOTA FIX)
-        sheet.update_cell(row_index, purchased_col_index, str(new_status).upper())
-        
-        # Force reload by incrementing version
-        st.session_state['data_version'] += 1
+    except Exception as e:
+        st.error("Data save failed. Could not write to Google Sheet.")
+        st.exception(e)
 
-def delete_item(timestamp_id):
-    g_client = st.session_state['g_client']
-    sheet, df = load_and_get_data(g_client, st.session_state['data_version'])
 
-    # CRITICAL FIX: Check for None sheet object
-    if sheet is None:
-        st.error("Cannot perform delete: Sheet failed to load.")
-        return
-
-    row_index = find_row_index(sheet, timestamp_id)
-    
-    if row_index:
-        # PERFORM SINGLE ROW DELETE (CRITICAL FOR QUOTA FIX)
-        sheet.delete_rows(row_index)
-        
-        # Force reload by incrementing version
-        st.session_state['data_version'] += 1
-
-# ----------------------- 
-# APP START 
-# ----------------------- 
-g_client = get_gspread_client() 
-st.session_state['g_client'] = g_client # Store client in state
+# -----------------------
+# APP START
+# -----------------------
+g_client = get_gspread_client()
 
 if not g_client:
     st.stop() # Stop execution if authentication fails
 
-# 1. LOAD THE DATA
-sheet, df = load_and_get_data(g_client, st.session_state['data_version']) 
+sheet, df = load_and_get_data(g_client)
 
 if sheet is None:
     st.stop() # Stop if sheet creation/loading failed
 
 st.markdown(f"<h1>🛒 Shopping List</h1>", unsafe_allow_html=True)
 
+
 # =====================================================
-# ADD ITEM FORM (EFFICIENT APPEND LOGIC)
+# ADD ITEM FORM (Outside of tabs so it's always visible)
 # =====================================================
 st.subheader("Add an Item")
 
+# --- Form Components ---
 with st.form(key='add_item_form', clear_on_submit=True):
     col1, col2 = st.columns(2)
     
@@ -236,7 +188,6 @@ with st.form(key='add_item_form', clear_on_submit=True):
     if st.form_submit_button("Add Item"):
         new_item_val = new_item.strip()
         
-        # VALIDATION LOGIC
         if not new_store:
             st.warning("Please select a store.")
         elif not new_category:
@@ -246,7 +197,7 @@ with st.form(key='add_item_form', clear_on_submit=True):
         elif new_item_val in df["item"].values:
             st.warning("That item is already on the list.")
         else:
-            # APPEND NEW ITEM LOGIC (Uses single sheet.append_row API call)
+            # Save the new item
             new_row = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                 "item": new_item_val, 
@@ -255,67 +206,98 @@ with st.form(key='add_item_form', clear_on_submit=True):
                 "store": new_store
             } 
             
-            # The efficient way to add a single item without rewriting the whole sheet
-            sheet.append_row(list(new_row.values())) 
+            # Append new row to the DataFrame
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             
+            # Save the UPDATED DataFrame back to Google Sheets
+            save_data_to_sheet(sheet, df)
+
             st.success(f"'{new_item_val}' added to the list for {new_store} under '{new_category}'.")
-            st.session_state['data_version'] += 1 # Increment version to force reload
             st.rerun()
 
 st.markdown("---")
 st.subheader("Items by Store")
 
 # =====================================================
-# STORE TABS NAVIGATION & DISPLAY (FINAL STABLE VERSION)
+# STORE TABS NAVIGATION & DISPLAY (Uses Query Params)
 # =====================================================
 
-# Check if df is not empty before creating tabs and looping
-if not df.empty:
-    
-    # 1. Create the tabs dynamically
-    store_tabs = st.tabs(STORES)
-    
-    # 2. Loop through the store tabs to display the filtered list in each one
-    for store_name, store_tab in zip(STORES, store_tabs):
-        with store_tab:
-            # 3. Filter the DataFrame for the current store and sort it
-            filtered_df = df[df["store"] == store_name].sort_values(
-                by=['purchased', 'category', 'item'], ascending=[True, True, True]
-            )
+# Create the tabs dynamically
+store_tabs = st.tabs(STORES)
 
-            # 4. Loop through the filtered items to display them with the new buttons
-            for index, row in filtered_df.iterrows():
-                # Ensure timestamp is a string for unique key generation
-                timestamp_id = str(row['timestamp'])
+# Loop through the store tabs to display the filtered list in each one
+for store_name, store_tab in zip(STORES, store_tabs):
+    with store_tab:
+        
+        # Filter the main DataFrame for the current store
+        df_store = df[df['store'] == store_name].reset_index(drop=False) # Keep the original index for query params
+        
+        if df_store.empty:
+            st.info(f"The list for **{store_name}** is empty. Add items above!")
+            continue # Skip to the next store if the list is empty
+
+        # Group and Sort Items: Group by category, then sort by purchased status within each group
+        # NOTE: We sort the df_store which contains the original DataFrame index in the 'index' column
+        df_grouped = df_store.sort_values(by=["category", "purchased"])
+        
+        # Unique categories in the list
+        for category, group_df in df_grouped.groupby("category"):
+            st.markdown(f"**<span style='font-size: 20px; color: #1f77b4; margin-bottom: 0px !important;'>{category}</span>**", unsafe_allow_html=True)
+                       
+            for idx, row in group_df.iterrows():
+                # IMPORTANT: Use the original index from the DataFrame stored in the 'index' column for updates
+                original_index = row['index'] 
+                item_name = row["item"]
+                purchased = row["purchased"]
+
+                # 1. Determine the status emoji and style
+                status_emoji = "✅" if purchased else "🛒"
+                status_style = "color: #888;" if purchased else "color: #000;"
                 
-                # Use a container and columns for alignment
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([1, 1, 1, 12])
-                    
-                    # --- TOGGLE BUTTON (Col 1) ---
-                    with col1:
-                        # Use a form for the button to prevent the new tab issue
-                        with st.form(key=f'form_toggle_{timestamp_id}', clear_on_submit=False):
-                            toggle_label = "🛒" if row["purchased"] else "✅"
-                            # The button calls the new toggle_item function
-                            st.form_submit_button(
-                                label=toggle_label,
-                                on_click=toggle_item,
-                                args=(timestamp_id,)
-                            )
+                # 2. Link for the status emoji (to toggle purchase)
+                # The index passed in the query is the original index of the item in the main df
+                toggle_link = f"<a href='?toggle={original_index}' style='text-decoration: none; font-size: 18px; flex-shrink: 0; margin-right: 10px; {status_style}'>{status_emoji}</a>"
+                
+                # 3. Link for the delete emoji (to delete the item)
+                delete_link = f"<a href='?delete={original_index}' style='text-decoration: none; font-size: 18px; flex-shrink: 0; color: #f00;'>🗑️</a>"
 
-                    # --- DELETE BUTTON (Col 2) ---
-                    with col2:
-                        with st.form(key=f'form_delete_{timestamp_id}', clear_on_submit=False):
-                            # The button calls the new delete_item function
-                            st.form_submit_button(
-                                label="🗑️",
-                                on_click=delete_item,
-                                args=(timestamp_id,)
-                            )
-                    
-                    # --- ITEM DISPLAY (Col 4) ---
-                    with col4:
-                        # Display item name and quantity with style
-                        item_style = "text-decoration: line-through; color: #a0a0a0;" if row["purchased"] else ""
-                        st.markdown(f'<span style="{item_style}">{row["item"]}</span>', unsafe_allow_html=True)
+                # 4. Item Name display (applies strikethrough/color via custom CSS)
+                item_style_display = "text-decoration: line-through; color: #888;" if purchased else "color: #000;"
+                item_name_display = f"<span style='font-size: 18px; flex-grow: 1; {item_style_display}'>{item_name}</span>"
+
+                # 5. Assemble the entire row in a single Markdown block using flexbox
+                item_html = f"""
+                <div class='item-row'>
+                    <div style='display: flex; align-items: center; flex-grow: 1; min-width: 1px;'>
+                        {toggle_link}
+                        {item_name_display}
+                    </div>
+                    {delete_link}
+                </div>
+                """
+                st.markdown(item_html, unsafe_allow_html=True)
+                
+# ----------------------------------------------------
+# FINAL CORE LOGIC BLOCK (Query Parameter Handler)
+# ----------------------------------------------------
+query_params = st.query_params
+
+# Check for toggle click
+toggle_id = query_params.get("toggle", None)
+if toggle_id and toggle_id.isdigit():
+    clicked_idx = int(toggle_id)
+    if clicked_idx in df.index:
+        df.loc[clicked_idx, "purchased"] = not df.loc[clicked_idx, "purchased"]
+        save_data_to_sheet(sheet, df) # Save the WHOLE sheet
+        st.query_params.clear() 
+        st.rerun()
+
+# Check for delete click
+delete_id = query_params.get("delete", None)
+if delete_id and delete_id.isdigit():
+    clicked_idx = int(delete_id)
+    if clicked_idx in df.index:
+        df = df.drop(clicked_idx)
+        save_data_to_sheet(sheet, df) # Save the WHOLE sheet
+        st.query_params.clear() 
+        st.rerun()
