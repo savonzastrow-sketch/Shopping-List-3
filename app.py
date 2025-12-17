@@ -93,21 +93,34 @@ def push_to_cloud():
 # CORE LOGIC: HANDLERS
 # -----------------------
 query_params = st.query_params
-
-# Safely get the dataframe from session state
 df_state = st.session_state.get('df')
 
-if df_state is not None:
+if df_state is not None and not df_state.empty:
+    # 1. Clean the timestamps in the DataFrame once per run
+    df_state['timestamp'] = df_state['timestamp'].astype(str).str.strip()
+
     # TOGGLE HANDLER
     if "toggle" in query_params:
-        t_id = str(query_params["toggle"])
-        # Ensure the column is strings for comparison
-        df_state['timestamp'] = df_state['timestamp'].astype(str)
+        # Get ID from URL and fix URL-encoded spaces (%20 -> " ")
+        t_id = str(query_params["toggle"]).replace("%20", " ").strip()
         
         if t_id in df_state['timestamp'].values:
             idx = df_state.index[df_state['timestamp'] == t_id].tolist()[0]
             df_state.at[idx, "purchased"] = not df_state.at[idx, "purchased"]
             st.session_state['needs_save'] = True
+        
+        st.query_params.clear()
+        st.rerun()
+
+    # DELETE HANDLER
+    if "delete" in query_params:
+        # Get ID from URL and fix URL-encoded spaces (%20 -> " ")
+        t_id = str(query_params["delete"]).replace("%20", " ").strip()
+        
+        if t_id in df_state['timestamp'].values:
+            st.session_state['df'] = df_state[df_state['timestamp'] != t_id].reset_index(drop=True)
+            st.session_state['needs_save'] = True
+        
         st.query_params.clear()
         st.rerun()
 
