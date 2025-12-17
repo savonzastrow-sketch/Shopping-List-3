@@ -9,8 +9,7 @@ STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"]
 
 st.set_page_config(page_title="🛒 Shopping List", layout="centered")
 
-# 2. THE HANDLER (Must be at the top to catch the click immediately)
-# We use st.query_params which is the most reliable for modern Streamlit
+# 2. THE HANDLER (Must stay at the top)
 params = st.query_params
 
 def handle_clicks():
@@ -48,7 +47,7 @@ def load_data():
         df = pd.DataFrame(sh.get_all_records())
         if df.empty:
             df = pd.DataFrame(columns=["item", "purchased", "category", "store"])
-        # Assign IDs that persist for this session
+        # Assign unique IDs for this session
         df = df.reset_index().rename(columns={'index': 'sid'})
         df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
         return df
@@ -60,51 +59,82 @@ if 'df' not in st.session_state or st.session_state['df'] is None:
     st.session_state['df'] = load_data()
     st.session_state['needs_save'] = False
 
-# Run handler after data is initialized
 handle_clicks()
 
 # 5. UI DISPLAY
 st.markdown("<h1 style='text-align: center;'>🛒 Shopping List</h1>", unsafe_allow_html=True)
 
-if st.session_state.get('needs_save'):
-    st.warning("⚠️ Unsaved changes to Cloud")
-
+# Save/Refresh Buttons
 col_s, col_r = st.columns(2)
 if col_s.button("☁️ Save to Cloud", use_container_width=True):
-    # Overwrite Cloud Logic
     client = get_client()
     sh = client.open(SHEET_NAME).sheet1
     clean_df = st.session_state['df'].drop(columns=['sid'])
     sh.clear()
     sh.append_rows([clean_df.columns.values.tolist()] + clean_df.values.tolist(), value_input_option='USER_ENTERED')
     st.session_state['needs_save'] = False
+    st.success("Saved to Cloud!")
     st.rerun()
 
 if col_r.button("🔄 Refresh", use_container_width=True):
     st.session_state['df'] = None
     st.rerun()
 
-# Tabs and List Rendering (Same as your screen)
+if st.session_state.get('needs_save'):
+    st.warning("⚠️ Unsaved changes")
+
+st.markdown("---")
+
+# --- ADD ITEM FORM (Restored) ---
+st.subheader("Add New Item")
+with st.form("add_form", clear_on_submit=True):
+    c1, c2 = st.columns(2)
+    store_choice = c1.selectbox("Store", STORES)
+    cat_choice = c2.selectbox("Category", CATEGORIES)
+    item_name = st.text_input("What do you need?")
+    
+    if st.form_submit_button("Add to List", use_container_width=True):
+        if item_name.strip():
+            df = st.session_state['df']
+            # Find the next available ID
+            next_sid = df['sid'].max() + 1 if not df.empty else 0
+            new_row = pd.DataFrame([{
+                "sid": next_sid, 
+                "item": item_name.strip(), 
+                "purchased": False, 
+                "category": cat_choice, 
+                "store": store_choice
+            }])
+            st.session_state['df'] = pd.concat([df, new_row], ignore_index=True)
+            st.session_state['needs_save'] = True
+            st.rerun()
+
+st.markdown("---")
+
+# 6. TABS & LIST
 tabs = st.tabs(STORES)
 for store_name, tab in zip(STORES, tabs):
     with tab:
         df = st.session_state['df']
-        items = df[df['store'] == store_name].sort_values("purchased")
+        store_items = df[df['store'] == store_name]
         
-        for cat, group in items.groupby("category", sort=False):
-            st.markdown(f"### {cat}")
-            for _, row in group.iterrows():
-                sid = row['sid']
-                emoji = "✅" if row['purchased'] else "🛒"
-                style = "text-decoration: line-through; color: gray;" if row['purchased'] else ""
-                
-                # The clickable row
-                st.markdown(f"""
-                <div style='display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee;'>
-                    <span>
-                        <a href='?t={sid}' style='text-decoration: none; margin-right: 10px;'>{emoji}</a>
-                        <span style='{style}'>{row['item']}</span>
-                    </span>
-                    <a href='?d={sid}' style='text-decoration: none;'>🗑️</a>
-                </div>
-                """, unsafe_allow_html=True)
+        if store_items.empty:
+            st.info(f"Your {store_name} list is empty.")
+        else:
+            sorted_items = store_items.sort_values("purchased")
+            for cat, group in sorted_items.groupby("category", sort=False):
+                st.markdown(f"### {cat}")
+                for _, row in group.iterrows():
+                    sid = row['sid']
+                    emoji = "✅" if row['purchased'] else "🛒"
+                    style = "text-decoration: line-through; color: gray;" if row['purchased'] else "font-weight: 500;"
+                    
+                    st.markdown(f"""
+                    <div style='display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #eee;'>
+                        <span style='font-size: 18px;'>
+                            <a href='?t={sid}' style='text-decoration: none; margin-right: 15px;'>{emoji}</a>
+                            <span style='{style}'>{row['item']}</span>
+                        </span>
+                        <a href='?d={sid}' style='text-decoration: none; font-size: 20px;'>🗑️</a>
+                    </div>
+                    """, unsafe_allow_html=True)
