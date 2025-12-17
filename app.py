@@ -17,14 +17,14 @@ STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"]
 # -----------------------
 st.set_page_config(page_title="🛒 Shopping List", layout="centered")
 
-# --- INITIALIZE SESSION STATE ---
+# --- INITIALIZE SESSION STATE (The Cache) ---
 if 'df' not in st.session_state:
     st.session_state['df'] = None
 if 'needs_save' not in st.session_state:
     st.session_state['needs_save'] = False
 
 # -----------------------
-# STYLES (Mobile Optimized)
+# STYLES (Your Mobile Design)
 # -----------------------
 st.markdown("""
 <style>
@@ -57,35 +57,37 @@ def load_data_from_gsheet(client):
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # Ensure column structure and correct dtypes
+        # Ensure column structure
         default_cols = ["timestamp", "item", "purchased", "category", "store"]
         if df.empty or 'store' not in df.columns:
             df = pd.DataFrame(columns=default_cols)
         
-        # Ensure timestamp is treated as a string for ID purposes
-        df["timestamp"] = df["timestamp"].astype(str)
+        # CRITICAL: Force timestamp and purchased to correct formats immediately
+        df["timestamp"] = df["timestamp"].astype(str).str.strip()
         df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
         
         return sheet, df
-    except gspread.SpreadsheetNotFound:
+    except Exception:
         return None, pd.DataFrame(columns=["timestamp", "item", "purchased", "category", "store"])
 
 def push_to_cloud():
-    """Commits local Session State changes to the Google Sheet."""
-    with st.spinner("Saving to Cloud..."):
+    """Wipes the Google Sheet and overwrites it with the current Session State."""
+    with st.spinner("Overwriting Cloud with your current list..."):
         try:
             client = get_gspread_client()
             spreadsheet = client.open(SHEET_NAME)
             sheet = spreadsheet.sheet1
             df = st.session_state['df']
             
-            # Prepare for write
+            # Prepare data (headers + rows)
             data_to_write = [df.columns.values.tolist()] + df.values.tolist()
+            
+            # Wipe and Overwrite
             sheet.clear()
             sheet.append_rows(data_to_write, value_input_option='USER_ENTERED')
             
             st.session_state['needs_save'] = False
-            st.success("Cloud Updated Successfully! ☁️")
+            st.success("Cloud Overwritten Successfully! ☁️")
         except Exception as e:
             st.error(f"Save failed: {e}")
 
@@ -96,40 +98,24 @@ query_params = st.query_params
 df_state = st.session_state.get('df')
 
 if df_state is not None and not df_state.empty:
-    # 1. Clean the timestamps in the DataFrame once per run
+    # 1. Clean IDs for comparison
     df_state['timestamp'] = df_state['timestamp'].astype(str).str.strip()
 
     # TOGGLE HANDLER
     if "toggle" in query_params:
-        # Get ID from URL and fix URL-encoded spaces (%20 -> " ")
         t_id = str(query_params["toggle"]).replace("%20", " ").strip()
-        
-        if t_id in df_state['timestamp'].values:
-            idx = df_state.index[df_state['timestamp'] == t_id].tolist()[0]
+        mask = df_state['timestamp'] == t_id
+        if mask.any():
+            idx = df_state.index[mask].tolist()[0]
             df_state.at[idx, "purchased"] = not df_state.at[idx, "purchased"]
             st.session_state['needs_save'] = True
-        
         st.query_params.clear()
         st.rerun()
 
     # DELETE HANDLER
     if "delete" in query_params:
-        # Get ID from URL and fix URL-encoded spaces (%20 -> " ")
         t_id = str(query_params["delete"]).replace("%20", " ").strip()
-        
-        if t_id in df_state['timestamp'].values:
-            st.session_state['df'] = df_state[df_state['timestamp'] != t_id].reset_index(drop=True)
-            st.session_state['needs_save'] = True
-        
-        st.query_params.clear()
-        st.rerun()
-
-    # DELETE HANDLER
-    if "delete" in query_params:
-        t_id = str(query_params["delete"])
-        df_state['timestamp'] = df_state['timestamp'].astype(str)
-        
-        if t_id in df_state['timestamp'].values:
+        if (df_state['timestamp'] == t_id).any():
             st.session_state['df'] = df_state[df_state['timestamp'] != t_id].reset_index(drop=True)
             st.session_state['needs_save'] = True
         st.query_params.clear()
@@ -141,7 +127,7 @@ if df_state is not None and not df_state.empty:
 g_client = get_gspread_client()
 if not g_client: st.stop()
 
-# Load into Session State if empty
+# Initial Load
 if st.session_state['df'] is None:
     _, initial_df = load_data_from_gsheet(g_client)
     st.session_state['df'] = initial_df
@@ -162,6 +148,7 @@ with st.container():
     with col_b:
         if st.button("🔄 Refresh List", use_container_width=True):
             st.session_state['df'] = None
+            st.query_params.clear()
             st.rerun()
 
 # --- ADD ITEM FORM ---
@@ -175,23 +162,17 @@ with st.form(key='add_item_form', clear_on_submit=True):
     if st.form_submit_button("Add Item"):
         if new_store and new_cat and new_item.strip():
             new_row = {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"), # Added ms for better uniqueness
-                "item": new_item.strip(), 
-                "purchased": False, 
-                "category": new_cat, 
-                "store": new_store
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                "item": new_item.strip(), "purchased": False, 
+                "category": new_cat, "store": new_store
             }
-            st.session_state['df'] = pd.concat([st.session_state['df'], pd.DataFrame([new_row])], ignore_index=True)
+            st.session_state['df'] = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             st.session_state['needs_save'] = True
             st.rerun()
-        else:
-            st.warning("Please fill in all fields.")
 
 st.markdown("---")
 
-# =====================================================
-# DISPLAY LOGIC (Mobile Optimized Design)
-# =====================================================
+# --- DISPLAY TABS ---
 tabs = st.tabs(STORES)
 for store_name, tab in zip(STORES, tabs):
     with tab:
@@ -199,13 +180,12 @@ for store_name, tab in zip(STORES, tabs):
         if store_df.empty:
             st.info(f"No items for {store_name}.")
             continue
-
-        # Sort within the tab: Unpurchased first, then by Category
-        sorted_store_df = store_df.sort_values(by=["purchased", "category"])
         
-        for category, group in sorted_store_df.groupby("category", sort=False):
+        # Sort unpurchased items to the top
+        sorted_df = store_df.sort_values(by="purchased")
+
+        for category, group in sorted_df.groupby("category", sort=False):
             st.markdown(f"**<span style='color: #1f77b4; font-size: 20px;'>{category}</span>**", unsafe_allow_html=True)
-            
             for _, row in group.iterrows():
                 t_id = row["timestamp"]
                 status_emoji = "✅" if row["purchased"] else "🛒"
