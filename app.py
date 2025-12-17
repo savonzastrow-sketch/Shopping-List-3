@@ -98,26 +98,34 @@ query_params = st.query_params
 df_state = st.session_state.get('df')
 
 if df_state is not None and not df_state.empty:
-    # 1. Clean IDs for comparison
+    # Force the dataframe column to be clean strings for comparison
     df_state['timestamp'] = df_state['timestamp'].astype(str).str.strip()
 
     # TOGGLE HANDLER
     if "toggle" in query_params:
+        # Get the ID and fix the URL-encoded space (%20 -> " ")
         t_id = str(query_params["toggle"]).replace("%20", " ").strip()
+        
+        # Check for an exact match
         mask = df_state['timestamp'] == t_id
         if mask.any():
             idx = df_state.index[mask].tolist()[0]
             df_state.at[idx, "purchased"] = not df_state.at[idx, "purchased"]
             st.session_state['needs_save'] = True
+        
         st.query_params.clear()
         st.rerun()
 
     # DELETE HANDLER
     if "delete" in query_params:
+        # Get the ID and fix the URL-encoded space (%20 -> " ")
         t_id = str(query_params["delete"]).replace("%20", " ").strip()
+        
+        # Only keep items that do NOT match this ID
         if (df_state['timestamp'] == t_id).any():
             st.session_state['df'] = df_state[df_state['timestamp'] != t_id].reset_index(drop=True)
             st.session_state['needs_save'] = True
+            
         st.query_params.clear()
         st.rerun()
 
