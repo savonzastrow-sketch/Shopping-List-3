@@ -81,7 +81,6 @@ def push_to_cloud():
 # -----------------------
 # CORE LOGIC: HANDLERS
 # -----------------------
-# Compatibility fix for NameError: st.query_params
 try:
     params = st.experimental_get_query_params()
 except AttributeError:
@@ -90,24 +89,40 @@ except AttributeError:
 df_state = st.session_state.get('df')
 
 if df_state is not None and not df_state.empty:
-    # TOGGLE (Matches by Item AND Store)
+    # --- TOGGLE HANDLER ---
     if "toggle_item" in params and "toggle_store" in params:
-        t_item = params["toggle_item"][0]
-        t_store = params["toggle_store"][0]
-        mask = (df_state['item'] == t_item) & (df_state['store'] == t_store)
+        # Get and clean the inputs from the URL
+        t_item = str(params["toggle_item"][0]).strip().lower()
+        t_store = str(params["toggle_store"][0]).strip().lower()
+        
+        # Create 'fuzzy' columns for a one-time comparison
+        temp_items = df_state['item'].astype(str).str.strip().str.lower()
+        temp_stores = df_state['store'].astype(str).str.strip().str.lower()
+        
+        mask = (temp_items == t_item) & (temp_stores == t_store)
+        
         if mask.any():
             idx = df_state.index[mask].tolist()[0]
             df_state.at[idx, "purchased"] = not df_state.at[idx, "purchased"]
             st.session_state['needs_save'] = True
+        
         st.experimental_set_query_params() 
         st.rerun()
 
-    # DELETE (Matches by Item AND Store)
+    # --- DELETE HANDLER ---
     if "del_item" in params and "del_store" in params:
-        d_item = params["del_item"][0]
-        d_store = params["del_store"][0]
-        st.session_state['df'] = df_state[~((df_state['item'] == d_item) & (df_state['store'] == d_store))].reset_index(drop=True)
-        st.session_state['needs_save'] = True
+        d_item = str(params["del_item"][0]).strip().lower()
+        d_store = str(params["del_store"][0]).strip().lower()
+        
+        temp_items = df_state['item'].astype(str).str.strip().str.lower()
+        temp_stores = df_state['store'].astype(str).str.strip().str.lower()
+        
+        mask = (temp_items == d_item) & (temp_stores == d_store)
+        
+        if mask.any():
+            st.session_state['df'] = df_state[~mask].reset_index(drop=True)
+            st.session_state['needs_save'] = True
+            
         st.experimental_set_query_params()
         st.rerun()
 
