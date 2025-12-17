@@ -94,36 +94,33 @@ def push_to_cloud():
 # -----------------------
 query_params = st.query_params
 
-# --- TOGGLE HANDLER ---
-if "toggle" in query_params:
-    # Force the clicked ID to be a string
-    t_id = str(query_params["toggle"]) 
-    df_state = st.session_state['df']
-    
-    # Force the entire timestamp column to be strings before checking
-    df_state['timestamp'] = df_state['timestamp'].astype(str) 
-    
-    if t_id in df_state['timestamp'].values:
-        idx = df_state.index[df_state['timestamp'] == t_id].tolist()[0]
-        df_state.at[idx, "purchased"] = not df_state.at[idx, "purchased"]
-        st.session_state['needs_save'] = True
-    st.query_params.clear()
-    st.rerun()
+# Safely get the dataframe from session state
+df_state = st.session_state.get('df')
 
-# --- DELETE HANDLER ---
-if "delete" in query_params:
-    # Force the clicked ID to be a string
-    t_id = str(query_params["delete"]) 
-    df_state = st.session_state['df']
-    
-    # Force the entire timestamp column to be strings
-    df_state['timestamp'] = df_state['timestamp'].astype(str) 
-    
-    if t_id in df_state['timestamp'].values:
-        st.session_state['df'] = df_state[df_state['timestamp'] != t_id].reset_index(drop=True)
-        st.session_state['needs_save'] = True
-    st.query_params.clear()
-    st.rerun()
+if df_state is not None:
+    # TOGGLE HANDLER
+    if "toggle" in query_params:
+        t_id = str(query_params["toggle"])
+        # Ensure the column is strings for comparison
+        df_state['timestamp'] = df_state['timestamp'].astype(str)
+        
+        if t_id in df_state['timestamp'].values:
+            idx = df_state.index[df_state['timestamp'] == t_id].tolist()[0]
+            df_state.at[idx, "purchased"] = not df_state.at[idx, "purchased"]
+            st.session_state['needs_save'] = True
+        st.query_params.clear()
+        st.rerun()
+
+    # DELETE HANDLER
+    if "delete" in query_params:
+        t_id = str(query_params["delete"])
+        df_state['timestamp'] = df_state['timestamp'].astype(str)
+        
+        if t_id in df_state['timestamp'].values:
+            st.session_state['df'] = df_state[df_state['timestamp'] != t_id].reset_index(drop=True)
+            st.session_state['needs_save'] = True
+        st.query_params.clear()
+        st.rerun()
 
 # -----------------------
 # APP START
