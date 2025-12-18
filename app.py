@@ -7,64 +7,75 @@ SHEET_NAME = "Shopping_List_Data"
 CATEGORIES = ["Vegetables", "Beverages", "Meat/Dairy", "Frozen", "Dry Goods"]
 STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"]
 
-# SWITCHED TO WIDE: This removes the mandatory side gutters
+# 'Wide' is required to unlock the full screen width on mobile
 st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 
-# --- THE PORTRAIT FIX: Edge-to-Edge CSS ---
+# --- THE HTML GRID & PORTRAIT FIX ---
 st.markdown("""
 <style>
-    /* 1. Desktop vs Mobile logic */
-    @media (min-width: 600px) {
-        .block-container {
-            max-width: 500px !important;
-            margin: auto !important;
-        }
-    }
-    
-    /* 2. Remove all extra padding for mobile portrait */
+    /* 1. Eliminate the 'Gutters' (Blank side spaces) */
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 5rem !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
+        padding-top: 1rem !important;
+        max-width: 100% !important;
     }
 
-    /* 3. Force the Row to use every pixel available */
+    /* 2. Force the Row to be a true horizontal grid with no gaps */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
-        gap: 0px !important; /* Zero gap for tighter fit */
+        gap: 0px !important;
     }
 
-    /* 4. Thumb-ready icons with no border */
-    div[data-testid="stColumn"] button {
+    /* 3. Style columns to act as tight grid cells */
+    [data-testid="column"] {
+        width: min-content !important;
+        flex: unset !important;
+        padding: 0px !important;
+    }
+    
+    /* Set specific widths: Icon cells are 45px, Text cell grows to fill */
+    [data-testid="column"]:nth-of-type(1), [data-testid="column"]:nth-of-type(3) {
+        width: 48px !important;
+    }
+    [data-testid="column"]:nth-of-type(2) {
+        flex-grow: 1 !important;
+        width: auto !important;
+    }
+
+    /* 4. Make buttons fill the grid cell perfectly */
+    div[data-testid="column"] button {
         border: none !important;
         background: transparent !important;
-        padding: 0px !important;
-        font-size: 24px !important;
         width: 100% !important;
+        height: 50px !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        font-size: 24px !important;
+        box-shadow: none !important;
     }
 
+    /* 5. Item Text styling */
     .item-text {
         font-size: 19px;
+        padding-left: 8px;
         line-height: 1.2;
-        padding-left: 10px;
     }
-    
-    h1 { text-align: center; font-size: 26px !important; }
-    
-    /* Shrink the tab font so they fit in portrait */
-    button[data-baseweb="tab"] {
-        font-size: 14px !important;
-        padding-left: 10px !important;
-        padding-right: 10px !important;
+
+    /* 6. Fix for Tablet/Desktop - Keep it centered if the screen is huge */
+    @media (min-width: 800px) {
+        .block-container {
+            max-width: 500px !important;
+            margin: auto !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. DATA FUNCTIONS (Unchanged for stability)
+# 2. DATA FUNCTIONS
 @st.cache_resource
 def get_client():
     return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
@@ -89,11 +100,11 @@ if 'df' not in st.session_state or st.session_state['df'] is None:
     st.session_state['needs_save'] = False
 
 # 4. APP UI
-st.markdown("<h1>🛒 Shopping List</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>🛒 Shopping List</h1>", unsafe_allow_html=True)
 
-# Compact Action Buttons
-c_save, c_ref = st.columns(2)
-if c_save.button("☁️ Save Cloud", use_container_width=True):
+# Control Buttons
+c1, c2 = st.columns(2)
+if c1.button("☁️ Save Cloud", use_container_width=True):
     try:
         client = get_client()
         sh = client.open(SHEET_NAME).sheet1
@@ -106,11 +117,13 @@ if c_save.button("☁️ Save Cloud", use_container_width=True):
     except Exception as e:
         st.error(f"Error: {e}")
 
-if c_ref.button("🔄 Refresh", use_container_width=True):
+if c2.button("🔄 Refresh", use_container_width=True):
     st.session_state['df'] = None
     st.rerun()
 
-# Expandable Add Form to save vertical space
+if st.session_state['needs_save']:
+    st.markdown("<p style='text-align:center; color:red; font-size:12px; margin:0;'>⚠️ Unsaved changes</p>", unsafe_allow_html=True)
+
 with st.expander("➕ Add New Item"):
     with st.form("add_form", clear_on_submit=True):
         s_choice = st.selectbox("Store", STORES)
@@ -133,28 +146,12 @@ for store_name, tab in zip(STORES, tabs):
         items = df[df['store'] == store_name]
         
         if items.empty:
-            st.info("No items yet.")
+            st.info("No items.")
         else:
-            sorted_items = items.sort_values("purchased")
-            for cat, group in sorted_items.groupby("category", sort=False):
+            sorted_group = items.sort_values("purchased")
+            for cat, group in sorted_group.groupby("category", sort=False):
                 st.markdown(f"**{cat}**")
                 for _, row in group.iterrows():
                     sid = row['sid']
                     emoji = "✅" if row['purchased'] else "🛒"
                     style = "text-decoration: line-through; color: gray;" if row['purchased'] else ""
-                    
-                    # Row Layout: Minimized side columns to maximize text space
-                    cols = st.columns([1.2, 7.6, 1.2])
-                    
-                    if cols[0].button(emoji, key=f"t_{sid}"):
-                        idx = df.index[df['sid'] == sid].tolist()[0]
-                        st.session_state['df'].at[idx, "purchased"] = not row["purchased"]
-                        st.session_state['needs_save'] = True
-                        st.rerun()
-                    
-                    cols[1].markdown(f"<div class='item-text' style='{style}'>{row['item']}</div>", unsafe_allow_html=True)
-                    
-                    if cols[2].button("🗑️", key=f"d_{sid}"):
-                        st.session_state['df'] = df[df['sid'] != sid].reset_index(drop=True)
-                        st.session_state['needs_save'] = True
-                        st.rerun()
