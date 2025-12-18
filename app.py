@@ -10,64 +10,38 @@ STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"]
 # Wide layout is required to use the full screen width
 st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 
-# --- THE "STRICT NO-WRAP" CSS ---
+# --- THE NEW "NO-COLUMNS" CSS ---
 st.markdown("""
 <style>
-    /* 1. Reclaim total screen width */
     .block-container {
         padding: 1rem 0.5rem !important;
         max-width: 100% !important;
     }
 
-    /* 2. Target only the Shopping List rows */
-    [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        justify-content: flex-start !important; /* Forces row to start at the left */
-        align-items: center !important;
-        gap: 0px !important;
-        width: 100% !important;
-        max-width: 400px !important; /* This prevents the 'extra space' in portrait */
+    /* A clean, single-container row that doesn't use Streamlit columns */
+    .custom-row {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f2f6; /* Optional: adds a thin line between items */
     }
 
-    /* 3. Force Column Widths */
-    /* Icon Column */
-    [data-testid="column"]:nth-of-type(1) {
-        flex: 0 0 45px !important;
-        width: 45px !important;
-        min-width: 45px !important;
-    }
-    
-    /* Text Column - Anchor it to the left */
-    [data-testid="column"]:nth-of-type(2) {
-        flex: 1 1 auto !important;
-        display: flex !important;
-        justify-content: flex-start !important;
-        padding-left: 0px !important;
-        margin-left: -5px !important; /* Negative margin to pull text closer to icon */
+    .row-item-text {
+        flex-grow: 1;
+        font-size: 18px;
+        padding: 0 10px;
+        text-align: left;
     }
 
-    /* Delete Column */
-    [data-testid="column"]:nth-of-type(3) {
-        flex: 0 0 45px !important;
-        width: 45px !important;
-    }
-
-    /* 4. Remove Paragraph padding that pushes text right */
-    [data-testid="stMarkdownContainer"] p {
-        margin: 0 !important;
-        text-align: left !important;
-    }
-
-    /* Invisible Button styling */
-    div[data-testid="column"] button {
+    /* Make buttons tiny and borderless */
+    div.stButton > button {
         border: none !important;
         background: transparent !important;
-        font-size: 24px !important;
         padding: 0 !important;
-        height: 45px !important;
-        width: 45px !important;
+        font-size: 24px !important;
+        width: 40px !important;
+        height: 40px !important;
     }
 
     @media (min-width: 800px) {
@@ -75,6 +49,53 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ... (Previous Setup/Data code remains the same) ...
+
+# 5. TABS & LIST (The Row Rewrite)
+tabs = st.tabs(STORES)
+for store_name, tab in zip(STORES, tabs):
+    with tab:
+        df = st.session_state['df']
+        items = df[df['store'] == store_name]
+        
+        if items.empty:
+            st.info("No items.")
+        else:
+            sorted_items = items.sort_values("purchased")
+            for cat, group in sorted_items.groupby("category", sort=False):
+                st.markdown(f"### {cat}")
+                
+                for _, row in group.iterrows():
+                    sid = row['sid']
+                    emoji = "✅" if row['purchased'] else "🛒"
+                    style = "text-decoration: line-through; color: gray;" if row['purchased'] else ""
+                    
+                    # WE USE ONE HORIZONTAL BLOCK INSTEAD OF 3 COLUMNS
+                    # Wrapping this in a custom div to ensure it stays pinned left
+                    st.markdown(f"<div class='custom-row'>", unsafe_allow_html=True)
+                    
+                    # We use standard columns here but with a very tiny ratio 
+                    # to keep them tightly grouped
+                    c_btn, c_txt, c_del = st.columns([0.15, 0.7, 0.15])
+                    
+                    with c_btn:
+                        if st.button(emoji, key=f"t_{sid}"):
+                            idx = df.index[df['sid'] == sid].tolist()[0]
+                            st.session_state['df'].at[idx, "purchased"] = not row["purchased"]
+                            st.session_state['needs_save'] = True
+                            st.rerun()
+                    
+                    with c_txt:
+                        st.markdown(f"<div class='row-item-text' style='{style}'>{row['item']}</div>", unsafe_allow_html=True)
+                    
+                    with c_del:
+                        if st.button("🗑️", key=f"d_{sid}"):
+                            st.session_state['df'] = df[df['sid'] != sid].reset_index(drop=True)
+                            st.session_state['needs_save'] = True
+                            st.rerun()
+                            
+                    st.markdown("</div>", unsafe_allow_html=True)
 
 # 2. DATA FUNCTIONS (Cleaned for better refresh)
 @st.cache_data(ttl=600)
