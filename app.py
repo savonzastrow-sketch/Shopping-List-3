@@ -13,17 +13,20 @@ st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 # --- THE "STRICT NO-WRAP" CSS ---
 st.markdown("""
 <style>
-    /* 1. Reclaim the side 'blank spaces' on mobile */
+    /* 1. Eliminate the side gutters on mobile */
     .block-container {
         padding: 1rem 0.5rem !important;
         max-width: 100% !important;
     }
 
-    /* 2. FORCE columns to stay in a row, even on tiny screens */
+    /* 2. FORCE columns to stay in a row and NOT center content */
     [data-testid="column"] {
         width: unset !important;
         flex: unset !important;
-        min-width: 0px !important; /* DISABLING THE BREAKPOINT */
+        min-width: 0px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important; /* Forces content to the left */
     }
 
     [data-testid="stHorizontalBlock"] {
@@ -31,20 +34,35 @@ st.markdown("""
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
-        gap: 5px !important;
+        justify-content: flex-start !important; /* Prevents centering of the row */
+        gap: 0px !important;
     }
 
-    /* 3. Set the specific widths for our grid */
-    /* Icon cells get 45px, Text cell takes the rest */
+    /* 3. Set the specific widths */
     [data-testid="column"]:nth-of-type(1), 
     [data-testid="column"]:nth-of-type(3) {
         width: 45px !important;
     }
     [data-testid="column"]:nth-of-type(2) {
         flex-grow: 1 !important;
+        text-align: left !important; /* Ensure text is left-aligned */
     }
 
-    /* 4. Style Buttons to look like native icons */
+    /* 4. Remove automatic margins that cause centering */
+    [data-testid="stMarkdownContainer"] p {
+        margin: 0 !important;
+        text-align: left !important;
+    }
+
+    /* Row styling */
+    .item-text {
+        font-size: 18px;
+        line-height: 1.2;
+        padding-left: 5px;
+        text-align: left !important;
+        width: 100%;
+    }
+
     div[data-testid="column"] button {
         border: none !important;
         background: transparent !important;
@@ -52,17 +70,7 @@ st.markdown("""
         padding: 0 !important;
         height: 45px !important;
         width: 45px !important;
-    }
-
-    .item-text {
-        font-size: 18px;
-        line-height: 1.2;
-        padding-left: 5px;
-    }
-
-    /* Keep it centered only on Desktop */
-    @media (min-width: 800px) {
-        .block-container { max-width: 500px !important; margin: auto !important; }
+        margin: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
