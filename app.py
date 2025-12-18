@@ -13,67 +13,63 @@ st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 # --- THE "STRICT NO-WRAP" CSS ---
 st.markdown("""
 <style>
-    /* 1. Eliminate the side 'blank spaces' (gutters) */
+    /* 1. Reclaim side spaces */
     .block-container {
         padding: 1rem 0.5rem !important;
         max-width: 100% !important;
     }
 
-    /* 2. FORCE columns to stay in a row & PIN content to the left */
-    [data-testid="column"] {
-        width: unset !important;
-        flex: unset !important;
-        min-width: 0px !important;
-        display: flex !important;
-        justify-content: flex-start !important; /* Forces content to the left */
-        align-items: center !important;
-    }
-
+    /* 2. FORCE row behavior and remove gaps */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
-        justify-content: flex-start !important; /* Prevents center-justification */
-        gap: 0px !important; /* Removes the gap between button and text */
+        justify-content: flex-start !important;
+        gap: 0px !important; /* Removes the horizontal spacing between columns */
     }
 
-    /* 3. Precise width control */
-    [data-testid="column"]:nth-of-type(1) {
-        width: 40px !important; /* Fixed narrow width for checkbox */
-    }
-    [data-testid="column"]:nth-of-type(2) {
-        flex-grow: 1 !important; /* Text takes all remaining space */
-        padding-left: 5px !important; /* Tight spacing between icon and text */
-    }
+    /* 3. STRICT Column Widths */
+    /* Column 1 (Checkbox) & Column 3 (Trash) */
+    [data-testid="column"]:nth-of-type(1), 
     [data-testid="column"]:nth-of-type(3) {
-        width: 40px !important; /* Fixed narrow width for trash */
+        flex: 0 0 45px !important; /* Fixed 45px, won't grow or shrink */
+        width: 45px !important;
+        min-width: 45px !important;
     }
 
-    /* 4. Remove automatic centering margins from the text itself */
+    /* Column 2 (Item Text) */
+    [data-testid="column"]:nth-of-type(2) {
+        flex: 1 1 auto !important; /* Takes all remaining space */
+        width: auto !important;
+        min-width: 0px !important;
+        display: flex !important;
+        justify-content: flex-start !important;
+    }
+
+    /* 4. Remove internal margins from the text */
     [data-testid="stMarkdownContainer"] p {
         margin: 0 !important;
         text-align: left !important;
+        padding-left: 5px !important; /* Minimal gap from the checkbox */
     }
 
-    /* 5. Button styling (Invisible but clickable) */
+    /* 5. Clean Button Look */
     div[data-testid="column"] button {
         border: none !important;
         background: transparent !important;
         font-size: 24px !important;
         padding: 0 !important;
-        height: 40px !important;
-        width: 40px !important;
+        height: 45px !important;
+        width: 45px !important;
         margin: 0 !important;
     }
 
     .item-text {
-        font-size: 18px;
-        line-height: 1.1;
-        text-align: left !important;
+        font-size: 19px;
+        line-height: 1.2;
     }
 
-    /* Desktop constraint */
     @media (min-width: 800px) {
         .block-container { max-width: 500px !important; margin: auto !important; }
     }
