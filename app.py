@@ -114,9 +114,14 @@ def load_data():
         return pd.DataFrame(columns=["sid", "item", "purchased", "category", "store"])
 
 # 3. INITIALIZE STATE
-if 'df' not in st.session_state:
+if 'df' not in st.session_state or st.session_state['df'] is None:
     st.session_state['df'] = load_data()
+    
+if 'needs_save' not in st.session_state:
     st.session_state['needs_save'] = False
+
+# This line is the 'Safety Net' - it creates a local variable for the UI to use
+df = st.session_state['df']
 
 # 4. APP UI
 st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>🛒 Shopping List</h1>", unsafe_allow_html=True)
@@ -158,18 +163,23 @@ for store_name, tab in zip(STORES, tabs):
                     emoji = "✅" if row['purchased'] else "🛒"
                     style = "text-decoration: line-through; color: gray;" if row['purchased'] else ""
                     
-                    # This row will NOT wrap because of the min-width: 0 CSS
-                    cols = st.columns([1, 8, 1])
+                    # Using a tiny ratio (0.15) for the buttons keeps them anchored left
+                    c_btn, c_txt, c_del = st.columns([0.15, 0.7, 0.15])
                     
-                    if cols[0].button(emoji, key=f"t_{sid}"):
-                        idx = df.index[df['sid'] == sid].tolist()[0]
-                        st.session_state['df'].at[idx, "purchased"] = not row["purchased"]
-                        st.session_state['needs_save'] = True
-                        st.rerun()
+                    with c_btn:
+                        # 'key' must be unique for every button in Streamlit
+                        if st.button(emoji, key=f"t_{sid}"):
+                            idx = df.index[df['sid'] == sid].tolist()[0]
+                            st.session_state['df'].at[idx, "purchased"] = not row["purchased"]
+                            st.session_state['needs_save'] = True
+                            st.rerun()
                     
-                    cols[1].markdown(f"<div class='item-text' style='{style}'>{row['item']}</div>", unsafe_allow_html=True)
+                    with c_txt:
+                        # This div class 'item-text' maps to the CSS we wrote earlier
+                        st.markdown(f"<div class='item-text' style='{style}'>{row['item']}</div>", unsafe_allow_html=True)
                     
-                    if cols[2].button("🗑️", key=f"d_{sid}"):
-                        st.session_state['df'] = df[df['sid'] != sid].reset_index(drop=True)
-                        st.session_state['needs_save'] = True
-                        st.rerun()
+                    with c_del:
+                        if st.button("🗑️", key=f"d_{sid}"):
+                            st.session_state['df'] = df[df['sid'] != sid].reset_index(drop=True)
+                            st.session_state['needs_save'] = True
+                            st.rerun()
