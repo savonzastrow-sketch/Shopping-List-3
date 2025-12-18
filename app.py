@@ -13,20 +13,20 @@ st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 # --- THE "STRICT NO-WRAP" CSS ---
 st.markdown("""
 <style>
-    /* 1. Eliminate the side gutters on mobile */
+    /* 1. Eliminate the side 'blank spaces' (gutters) */
     .block-container {
         padding: 1rem 0.5rem !important;
         max-width: 100% !important;
     }
 
-    /* 2. FORCE columns to stay in a row and NOT center content */
+    /* 2. FORCE columns to stay in a row & PIN content to the left */
     [data-testid="column"] {
         width: unset !important;
         flex: unset !important;
         min-width: 0px !important;
         display: flex !important;
-        align-items: center !important;
         justify-content: flex-start !important; /* Forces content to the left */
+        align-items: center !important;
     }
 
     [data-testid="stHorizontalBlock"] {
@@ -34,43 +34,48 @@ st.markdown("""
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
-        justify-content: flex-start !important; /* Prevents centering of the row */
-        gap: 0px !important;
+        justify-content: flex-start !important; /* Prevents center-justification */
+        gap: 0px !important; /* Removes the gap between button and text */
     }
 
-    /* 3. Set the specific widths */
-    [data-testid="column"]:nth-of-type(1), 
-    [data-testid="column"]:nth-of-type(3) {
-        width: 45px !important;
+    /* 3. Precise width control */
+    [data-testid="column"]:nth-of-type(1) {
+        width: 40px !important; /* Fixed narrow width for checkbox */
     }
     [data-testid="column"]:nth-of-type(2) {
-        flex-grow: 1 !important;
-        text-align: left !important; /* Ensure text is left-aligned */
+        flex-grow: 1 !important; /* Text takes all remaining space */
+        padding-left: 5px !important; /* Tight spacing between icon and text */
+    }
+    [data-testid="column"]:nth-of-type(3) {
+        width: 40px !important; /* Fixed narrow width for trash */
     }
 
-    /* 4. Remove automatic margins that cause centering */
+    /* 4. Remove automatic centering margins from the text itself */
     [data-testid="stMarkdownContainer"] p {
         margin: 0 !important;
         text-align: left !important;
     }
 
-    /* Row styling */
-    .item-text {
-        font-size: 18px;
-        line-height: 1.2;
-        padding-left: 5px;
-        text-align: left !important;
-        width: 100%;
-    }
-
+    /* 5. Button styling (Invisible but clickable) */
     div[data-testid="column"] button {
         border: none !important;
         background: transparent !important;
         font-size: 24px !important;
         padding: 0 !important;
-        height: 45px !important;
-        width: 45px !important;
+        height: 40px !important;
+        width: 40px !important;
         margin: 0 !important;
+    }
+
+    .item-text {
+        font-size: 18px;
+        line-height: 1.1;
+        text-align: left !important;
+    }
+
+    /* Desktop constraint */
+    @media (min-width: 800px) {
+        .block-container { max-width: 500px !important; margin: auto !important; }
     }
 </style>
 """, unsafe_allow_html=True)
