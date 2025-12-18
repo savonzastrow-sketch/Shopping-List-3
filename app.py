@@ -2,6 +2,32 @@ import streamlit as st
 import pandas as pd
 import gspread
 
+DATA FUNCTIONS (Cleaned for better refresh)
+@st.cache_data(ttl=600)
+def load_data():
+    try:
+        client = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+        sh = client.open(SHEET_NAME).sheet1
+        df = pd.DataFrame(sh.get_all_records())
+        if df.empty:
+            df = pd.DataFrame(columns=["sid", "item", "purchased", "category", "store"])
+        if 'sid' not in df.columns:
+            df = df.reset_index().rename(columns={'index': 'sid'})
+        df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
+        return df
+    except:
+        return pd.DataFrame(columns=["sid", "item", "purchased", "category", "store"])
+
+# INITIALIZE STATE
+if 'df' not in st.session_state or st.session_state['df'] is None:
+    st.session_state['df'] = load_data()
+    
+if 'needs_save' not in st.session_state:
+    st.session_state['needs_save'] = False
+
+# This line is the 'Safety Net' - it creates a local variable for the UI to use
+df = st.session_state['df']
+
 # 1. SETUP & CONFIG
 SHEET_NAME = "Shopping_List_Data"
 CATEGORIES = ["Vegetables", "Beverages", "Meat/Dairy", "Frozen", "Dry Goods"]
@@ -96,32 +122,6 @@ for store_name, tab in zip(STORES, tabs):
                             st.rerun()
                             
                     st.markdown("</div>", unsafe_allow_html=True)
-
-# 2. DATA FUNCTIONS (Cleaned for better refresh)
-@st.cache_data(ttl=600)
-def load_data():
-    try:
-        client = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
-        sh = client.open(SHEET_NAME).sheet1
-        df = pd.DataFrame(sh.get_all_records())
-        if df.empty:
-            df = pd.DataFrame(columns=["sid", "item", "purchased", "category", "store"])
-        if 'sid' not in df.columns:
-            df = df.reset_index().rename(columns={'index': 'sid'})
-        df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
-        return df
-    except:
-        return pd.DataFrame(columns=["sid", "item", "purchased", "category", "store"])
-
-# 3. INITIALIZE STATE
-if 'df' not in st.session_state or st.session_state['df'] is None:
-    st.session_state['df'] = load_data()
-    
-if 'needs_save' not in st.session_state:
-    st.session_state['needs_save'] = False
-
-# This line is the 'Safety Net' - it creates a local variable for the UI to use
-df = st.session_state['df']
 
 # 4. APP UI
 st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>🛒 Shopping List</h1>", unsafe_allow_html=True)
