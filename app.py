@@ -7,53 +7,64 @@ SHEET_NAME = "Shopping_List_Data"
 CATEGORIES = ["Vegetables", "Beverages", "Meat/Dairy", "Frozen", "Dry Goods"]
 STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"]
 
-# Set to 'centered' but we will override the width with CSS for mobile
-st.set_page_config(page_title="🛒 Shopping List", layout="centered")
+# SWITCHED TO WIDE: This removes the mandatory side gutters
+st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 
-# --- THE PORTRAIT FIX: Custom Responsive CSS ---
+# --- THE PORTRAIT FIX: Edge-to-Edge CSS ---
 st.markdown("""
 <style>
-    /* 1. Limit width on desktop but fill 100% on mobile portrait */
+    /* 1. Desktop vs Mobile logic */
+    @media (min-width: 600px) {
+        .block-container {
+            max-width: 500px !important;
+            margin: auto !important;
+        }
+    }
+    
+    /* 2. Remove all extra padding for mobile portrait */
     .block-container {
-        max-width: 450px !important;
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-top: 1rem !important;
+        padding-bottom: 5rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
     }
 
-    /* 2. Force the item row to stay horizontal even in portrait */
+    /* 3. Force the Row to use every pixel available */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
-        gap: 10px !important;
+        gap: 0px !important; /* Zero gap for tighter fit */
     }
 
-    /* 3. Thumb-friendly buttons */
+    /* 4. Thumb-ready icons with no border */
     div[data-testid="stColumn"] button {
         border: none !important;
         background: transparent !important;
-        padding: 5px !important;
+        padding: 0px !important;
         font-size: 24px !important;
-        min-width: 45px !important;
-        min-height: 45px !important;
+        width: 100% !important;
     }
 
-    /* 4. Text styling for vertical reading */
     .item-text {
-        font-size: 18px;
+        font-size: 19px;
         line-height: 1.2;
-        word-wrap: break-word;
-        flex-grow: 1;
+        padding-left: 10px;
     }
     
-    h1 { text-align: center; font-size: 26px !important; margin-bottom: 0px !important; }
+    h1 { text-align: center; font-size: 26px !important; }
+    
+    /* Shrink the tab font so they fit in portrait */
+    button[data-baseweb="tab"] {
+        font-size: 14px !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. DATA FUNCTIONS
+# 2. DATA FUNCTIONS (Unchanged for stability)
 @st.cache_resource
 def get_client():
     return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
@@ -65,7 +76,6 @@ def load_data():
         df = pd.DataFrame(sh.get_all_records())
         if df.empty:
             df = pd.DataFrame(columns=["item", "purchased", "category", "store"])
-        # Ensure 'sid' exists for session stability
         if 'sid' not in df.columns:
             df = df.reset_index().rename(columns={'index': 'sid'})
         df["purchased"] = df["purchased"].astype(str).str.lower().map({'true': True, 'false': False}).fillna(False)
@@ -78,10 +88,10 @@ if 'df' not in st.session_state or st.session_state['df'] is None:
     st.session_state['df'] = load_data()
     st.session_state['needs_save'] = False
 
-# 4. APP HEADER & UI
+# 4. APP UI
 st.markdown("<h1>🛒 Shopping List</h1>", unsafe_allow_html=True)
 
-# Main Controls
+# Compact Action Buttons
 c_save, c_ref = st.columns(2)
 if c_save.button("☁️ Save Cloud", use_container_width=True):
     try:
@@ -91,7 +101,7 @@ if c_save.button("☁️ Save Cloud", use_container_width=True):
         sh.clear()
         sh.append_rows([clean_df.columns.values.tolist()] + clean_df.values.tolist(), value_input_option='USER_ENTERED')
         st.session_state['needs_save'] = False
-        st.success("Synced! ✅")
+        st.success("Saved!")
         st.rerun()
     except Exception as e:
         st.error(f"Error: {e}")
@@ -100,11 +110,8 @@ if c_ref.button("🔄 Refresh", use_container_width=True):
     st.session_state['df'] = None
     st.rerun()
 
-if st.session_state['needs_save']:
-    st.markdown("<p style='text-align:center; color:red; font-size:12px;'>⚠️ Unsaved changes</p>", unsafe_allow_html=True)
-
-# ADD ITEM FORM
-with st.expander("➕ Add New Item", expanded=False):
+# Expandable Add Form to save vertical space
+with st.expander("➕ Add New Item"):
     with st.form("add_form", clear_on_submit=True):
         s_choice = st.selectbox("Store", STORES)
         c_choice = st.selectbox("Category", CATEGORIES)
@@ -126,19 +133,18 @@ for store_name, tab in zip(STORES, tabs):
         items = df[df['store'] == store_name]
         
         if items.empty:
-            st.info("List is empty")
+            st.info("No items yet.")
         else:
-            sorted_group = items.sort_values("purchased")
-            for cat, group in sorted_group.groupby("category", sort=False):
-                st.markdown(f"--- \n **{cat}**")
+            sorted_items = items.sort_values("purchased")
+            for cat, group in sorted_items.groupby("category", sort=False):
+                st.markdown(f"**{cat}**")
                 for _, row in group.iterrows():
                     sid = row['sid']
                     emoji = "✅" if row['purchased'] else "🛒"
                     style = "text-decoration: line-through; color: gray;" if row['purchased'] else ""
                     
-                    # Row Layout: Toggle (Left), Text (Center), Delete (Right)
-                    # The CSS at the top ensures these stay locked in a row
-                    cols = st.columns([1, 6, 1])
+                    # Row Layout: Minimized side columns to maximize text space
+                    cols = st.columns([1.2, 7.6, 1.2])
                     
                     if cols[0].button(emoji, key=f"t_{sid}"):
                         idx = df.index[df['sid'] == sid].tolist()[0]
