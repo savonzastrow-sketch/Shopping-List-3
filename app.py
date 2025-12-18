@@ -1,4 +1,4 @@
-# Back-up version- Fully working app, good UI, and save function working (still making extra chrome tabs)
+# Back-up version- Fully working app, good UI, and save function working (session state is clearing past entries after every button push)
 
 import streamlit as st
 import pandas as pd
