@@ -13,48 +13,54 @@ st.set_page_config(page_title="🛒 Shopping List", layout="wide")
 # --- THE "STRICT NO-WRAP" CSS ---
 st.markdown("""
 <style>
-    /* 1. Reclaim side spaces */
+    /* 1. Reclaim total screen width */
     .block-container {
         padding: 1rem 0.5rem !important;
         max-width: 100% !important;
     }
 
-    /* 2. FORCE row behavior and remove gaps */
+    /* 2. Target only the Shopping List rows */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
+        justify-content: flex-start !important; /* Forces row to start at the left */
         align-items: center !important;
-        justify-content: flex-start !important;
-        gap: 0px !important; /* Removes the horizontal spacing between columns */
+        gap: 0px !important;
+        width: 100% !important;
+        max-width: 400px !important; /* This prevents the 'extra space' in portrait */
     }
 
-    /* 3. STRICT Column Widths */
-    /* Column 1 (Checkbox) & Column 3 (Trash) */
-    [data-testid="column"]:nth-of-type(1), 
-    [data-testid="column"]:nth-of-type(3) {
-        flex: 0 0 45px !important; /* Fixed 45px, won't grow or shrink */
+    /* 3. Force Column Widths */
+    /* Icon Column */
+    [data-testid="column"]:nth-of-type(1) {
+        flex: 0 0 45px !important;
         width: 45px !important;
         min-width: 45px !important;
     }
-
-    /* Column 2 (Item Text) */
+    
+    /* Text Column - Anchor it to the left */
     [data-testid="column"]:nth-of-type(2) {
-        flex: 1 1 auto !important; /* Takes all remaining space */
-        width: auto !important;
-        min-width: 0px !important;
+        flex: 1 1 auto !important;
         display: flex !important;
         justify-content: flex-start !important;
+        padding-left: 0px !important;
+        margin-left: -5px !important; /* Negative margin to pull text closer to icon */
     }
 
-    /* 4. Remove internal margins from the text */
+    /* Delete Column */
+    [data-testid="column"]:nth-of-type(3) {
+        flex: 0 0 45px !important;
+        width: 45px !important;
+    }
+
+    /* 4. Remove Paragraph padding that pushes text right */
     [data-testid="stMarkdownContainer"] p {
         margin: 0 !important;
         text-align: left !important;
-        padding-left: 5px !important; /* Minimal gap from the checkbox */
     }
 
-    /* 5. Clean Button Look */
+    /* Invisible Button styling */
     div[data-testid="column"] button {
         border: none !important;
         background: transparent !important;
@@ -62,12 +68,6 @@ st.markdown("""
         padding: 0 !important;
         height: 45px !important;
         width: 45px !important;
-        margin: 0 !important;
-    }
-
-    .item-text {
-        font-size: 19px;
-        line-height: 1.2;
     }
 
     @media (min-width: 800px) {
