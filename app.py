@@ -82,15 +82,23 @@ st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>🛒 Shopping Lis
 
 st.markdown("""
 <style>
-    /* Increase font size for the Tabs (Stores) */
-    button[data-testid="stMarker"] p {
+    /* Force font size on the tab labels */
+    [data-testid="stTab"] p {
         font-size: 36px !important;
         font-weight: 700 !important;
+        line-height: 1.2 !important;
     }
 
-    /* Optional: Ensure the tabs stay on one line on mobile */
-    div[data-testid="stTab"] {
-        min-width: fit-content !important;
+    /* Increase the hit area of the tabs for mobile thumbs */
+    button[data-testid="stMarker"] {
+        padding: 15px 10px !important;
+        height: auto !important;
+    }
+
+    /* Ensure the red underline matches the new width */
+    [data-testid="stTab"] {
+        width: auto !important;
+        min-width: 120px !important;
     }
 </style>
 """, unsafe_allow_html=True)
