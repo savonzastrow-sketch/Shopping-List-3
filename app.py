@@ -84,8 +84,8 @@ st.markdown("""
 <style>
     /* Increase font size for the Tabs (Stores) */
     button[data-testid="stMarker"] p {
-        font-size: 24px !important;
-        font-weight: 600 !important;
+        font-size: 36px !important;
+        font-weight: 700 !important;
     }
 
     /* Optional: Ensure the tabs stay on one line on mobile */
