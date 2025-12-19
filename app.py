@@ -84,8 +84,8 @@ st.markdown("""
 <style>
     /* Force font size on the tab labels */
     [data-testid="stTab"] p {
-        font-size: 36px !important;
-        font-weight: 700 !important;
+        font-size: 24px !important;
+        font-weight: 600 !important;
         line-height: 1.2 !important;
     }
 
