@@ -80,6 +80,21 @@ handle_clicks()
 # 5. UI DISPLAY
 st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>🛒 Shopping List</h1>", unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+    /* Increase font size for the Tabs (Stores) */
+    button[data-testid="stMarker"] p {
+        font-size: 24px !important;
+        font-weight: 600 !important;
+    }
+
+    /* Optional: Ensure the tabs stay on one line on mobile */
+    div[data-testid="stTab"] {
+        min-width: fit-content !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Action Bar
 col_r = st.columns(1)[0] # Only need refresh now since save is automatic
 if col_r.button("🔄 Force Refresh from Cloud", use_container_width=True):
