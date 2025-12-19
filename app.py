@@ -128,6 +128,7 @@ for store_name, tab in zip(STORES, tabs):
                 for _, row in group.iterrows():
                     sid = row['sid']
                     emoji = "✅" if row['purchased'] else "🛒"
+                    style = ""
                                         
                     # HTML Grid Row for tight mobile spacing
                     st.markdown(f"""
