@@ -126,13 +126,13 @@ for store_name, tab in zip(STORES, tabs):
                 for _, row in group.iterrows():
                     sid = row['sid']
                     emoji = "✅" if row['purchased'] else "🛒"
-                    style = "text-decoration: line-through; color: gray;" if row['purchased'] else ""
-                    
+                    style = ""
+                                        
                     # HTML Grid Row for tight mobile spacing
                     st.markdown(f"""
                     <div style='display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee;'>
                         <a href='?t={sid}' target='_self' style='text-decoration: none; font-size: 22px; width: 40px;'>{emoji}</a>
-                        <span style='flex-grow: 1; font-size: 18px; {style}'>{row['item']}</span>
+                        <span style='flex-grow: 1; font-size: 18px;'>{row['item']}</span>
                         <a href='?d={sid}' target='_self' style='text-decoration: none; font-size: 20px; width: 40px; text-align: right;'>🗑️</a>
                     </div>
                     """, unsafe_allow_html=True)
