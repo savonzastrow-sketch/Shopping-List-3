@@ -5,7 +5,7 @@ import gspread
 # 1. SETUP & CONFIG
 SHEET_NAME = "Shopping_List_Data"
 CATEGORIES = ["Vegetables", "Beverages", "Meat/Dairy", "Frozen", "Dry Goods"]
-STORES = ["Costco", "Trader Joe's", "Whole Foods", "Other"]
+STORES = ["Costco", "Trader Joe's", "Whole Foods", "aldi", "Other"]
 
 st.set_page_config(page_title="🛒 Shopping List", layout="centered")
 
